@@ -25,6 +25,7 @@ import tornado.util
 from tornado.ioloop import IOLoop
 from threading import Thread
 import socket
+import asyncio
 
 """
 RF: Debug Mode Calls for Dask (Disable on release)
@@ -60,18 +61,27 @@ def launch_python_post():
 	logger.write("  - Initializing Dask (" + str(dask_nodes) + " Nodes Requested), Collecting routines needed")
 	_routines = Routines.Routines()
 	# Start Dask Tasks
-	cLoop = IOLoop.current()
-	t = Thread(target = cLoop.start, daemon = True)
-	t.start()
-	logger.write("   - Tornado IO Loop initialized...")
-	s = Scheduler(loop = cLoop, dashboard_address = None)
-	s.start("tcp://: " + str(scheduler_port))
+	#cLoop = IOLoop.current()
+	#t = Thread(target = cLoop.start, daemon = True)
+	#t.start()
+	
+	logger.write("   - Async IO Loop initialized...")
+	async def f(port):
+		s = Scheduler(port=scheduler_port)
+		s = await s
+		await s.finished()
+		return 1
+
+	asyncio.gather(f(scheduler_port))
+	
+	#asyncio.get_event_loop().run_until_complete(f(scheduler_port))
+	
 	logger.write("   - Dask Scheduler initialized (Port " + str(scheduler_port) + ")...")
 	dask_client = Client("tcp://" + socket.gethostname() + ":" + str(scheduler_port))
 	logger.write("   - Dask Client initialized...")
 	logger.write("   - Writing Dask Worker Job Files...")
 	with PyPostTools.cd(targetDir):
-		writeFile1 = PyPostTools.write_job_file(socket.gethostname(), scheduler_port, project_name="climate_severe", queue="debug-cache-quad", nodes=dask_nodes, wall_time=60, nProcs=1)
+		writeFile1 = PyPostTools.write_job_file(socket.gethostname(), scheduler_port, project_name="Nowcast", queue="default", nodes=dask_nodes, wall_time=60, nProcs=1)
 		writeFile2 = PyPostTools.write_worker_file(socket.gethostname(), scheduler_port, nProcs=1)
 		if(writeFile1 == False or writeFile2 == False):
 			dask_client.close()
@@ -181,10 +191,6 @@ def start_plotting(dask_client, fullDict, dask_threads):
 	return plotting_future	
 	
 def run_calculation_routines(callObject):
-	import ArrayTools
-	import Calculation
-	import Routines
-	import PyPostTools
 
 	ncFile_Name = callObject['filename']
 	start = callObject['start']

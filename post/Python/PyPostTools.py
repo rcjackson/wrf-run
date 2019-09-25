@@ -94,8 +94,12 @@ def write_job_file(host, scheduler_port=None, project_name=None, queue=None, nod
 		target_file.write("#COBALT -n " + str(nodes) + '\n')
 		target_file.write("#COBALT -A " + str(project_name) + '\n')
 		target_file.write("#COBALT -q " + str(queue) + '\n')
-		target_file.write("#COBALT --attrs mcdram=cache:numa=quad" + '\n' + '\n')
-		target_file.write("aprun -n ${COBALT_JOBSIZE} -N " + str(nProcs) + " -d 64 -j 1 ./launch-worker.sh")
+		#target_file.write("#COBALT --attrs mcdram=cache:numa=quad" + '\n' + '\n')
+		target_file.write("for host in `uniq $COBALT_NODEFILE`; do" + '\n')
+		target_file.write("  ssh $host " + os.getcwd() + "/launch-worker.sh &" + '\n')
+		target_file.write("done" + '\n')
+		target_file.write("ssh " + str(host) + ":" + str(scheduler_port) + '\n')
+		target_file.write("wait" + '\n') 
 	return True
 	
 ### NOTE: This will eventually need a re-write to support alternate directories.
@@ -104,8 +108,9 @@ def write_worker_file(host, scheduler_port=None, nProcs=1):
 		return False
 	with open("launch-worker.sh", 'w') as target_file:
 		target_file.write("#!/bin/bash" + '\n')
-		target_file.write("export PYTHONPATH=${PYTHONPATH}:/projects/climate_severe/wrf-run/post/Python/" + '\n\n')
-		target_file.write("/projects/climate_severe/Python/anaconda/bin/python3.7 -m distributed.cli.dask_worker \\" + '\n')
+		target_file.write("conda activate wrf_env" + '\n')
+		#target_file.write("export PYTHONPATH=${PYTHONPATH}:/projects/climate_severe/wrf-run/post/Python/" + '\n\n')
+		target_file.write("dask-worker \\" + '\n')
 		target_file.write(str(host) + ":" + str(scheduler_port) + " --nprocs " + str(nProcs) + "\\" + '\n')
 		target_file.write(" --death-timeout 120 --no-dashboard" + '\n\n')
 	return True	
